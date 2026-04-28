@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
+import java.time.LocalDateTime;
+
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
 
@@ -70,6 +72,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setStatus(StatusConstant.ENABLE);
         //设置密码 默认密码123456
         employee.setPassword(DigestUtils.md5DigestAsHex(PasswordConstant.DEFAULT_PASSWORD.getBytes()));
+        //设置当前记录的创建时间和修改时间
+        employee.setCreateTime(LocalDateTime.now());
+        employee.setUpdateTime(LocalDateTime.now());
+        //设置当前记录创建人id和修改人id
+        //TODO 后期需要改为当前登录用户的id
+        employee.setCreateUser(10L);
+        employee.setUpdateUser(10L);
+        employeeMapper.insert(employee);
     }
 
 }
