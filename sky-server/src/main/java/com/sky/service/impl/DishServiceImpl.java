@@ -118,6 +118,19 @@ public class DishServiceImpl implements DishService {
         dishVO.setFlavors(dishFlavors);
         return dishVO;
     }
+
+    /**
+     * 根据分类id查询菜品选项
+     * @param categoryId
+     * @return
+     */
+    public List<Dish> list(Long categoryId) {
+        Dish dish = Dish.builder()
+                .categoryId(categoryId)
+                .status(StatusConstant.ENABLE)
+                .build();
+        return dishMapper.list(dish);
+    }
     public void updateWithFlavor(DishDTO dishDTO) {
 
         Dish dish=new Dish();
@@ -136,5 +149,10 @@ public class DishServiceImpl implements DishService {
             //向口味表插入n条数据  批量插入
             dishFlavorMapper.insertBatch(flavors);
         }
+    }
+
+    @Override
+    public List<DishVO> listWithFlavor(Dish dish) {
+        return null;
     }
 }
