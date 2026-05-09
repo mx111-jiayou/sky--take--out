@@ -29,10 +29,38 @@ import java.util.List;
 public class DishServiceImpl implements DishService {
     @Autowired
     private DishMapper dishMapper;
+
+
+
     @Autowired
     private DishFlavorMapper dishFlavorMapper;
     @Autowired
     private SetmealDishMapper setmealDishMapper;
+    /**
+     * 菜品起售/停售
+     * @param status 状态值：1-起售，0-停售
+     * @param id 菜品id
+     */
+    @Override
+    public void startOrStop(Integer status, Long id) {
+        // 校验参数
+        if (id == null || status == null) {
+            throw new IllegalArgumentException("菜品id和状态不能为空");
+        }
+        if (status != 0 && status != 1) {
+            throw new IllegalArgumentException("状态值必须为0或1");
+        }
+
+        // 新增：检查菜品是否存在
+        Dish dish = dishMapper.getById(id);
+        if (dish == null) {
+            throw new IllegalArgumentException("菜品不存在");
+        }
+
+        // 更新菜品状态
+        dish.setStatus(status);  // 直接使用查询到的dish对象
+        dishMapper.update(dish);
+    }
     /**
      * 新增菜品和对应的口味
      * @param dishDTO 菜品DTO
