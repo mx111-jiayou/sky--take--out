@@ -1,5 +1,6 @@
 package com.sky.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.sky.constant.MessageConstant;
 import com.sky.context.BaseContext;
@@ -14,6 +15,7 @@ import com.sky.service.OrderService;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderSubmitVO;
+import com.sky.websocket.WebSocketServer;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderServiceImpl implements OrderService {
@@ -40,8 +44,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private WebSocketServer webSocketServer;
+
     /**
      * 用户下单
+     *
      * @param orderSubmitDTO 订单提交DTO
      * @return 订单提交VO
      */
@@ -56,19 +64,19 @@ public class OrderServiceImpl implements OrderService {
         }
         //查询当前用户的购物车数据
         Long userId = BaseContext.getCurrentId();
-        ShoppingCart shoppingCart=new ShoppingCart();
+        ShoppingCart shoppingCart = new ShoppingCart();
         shoppingCart.setUserId(userId);
         shoppingCartMapper.list(shoppingCart);
-        List<ShoppingCart> shoppingCartlist=shoppingCartMapper.list(shoppingCart);
-        if(shoppingCartlist==null||shoppingCartlist.size()==0){
+        List<ShoppingCart> shoppingCartlist = shoppingCartMapper.list(shoppingCart);
+        if (shoppingCartlist == null || shoppingCartlist.size() == 0) {
             //抛出业务异常
             throw new ShoppingCartBusinessException(MessageConstant.SHOPPING_CART_IS_NULL);
         }
         //查询当前用户的购物车数据
 
         //向订单表插入1条数据
-        Orders orders=new Orders();
-        BeanUtils.copyProperties(orderSubmitDTO,orders);
+        Orders orders = new Orders();
+        BeanUtils.copyProperties(orderSubmitDTO, orders);
         orders.setOrderTime(LocalDateTime.now());
         orders.setPayStatus(Orders.UN_PAID);
         orders.setNumber(String.valueOf(System.currentTimeMillis()));
@@ -76,11 +84,11 @@ public class OrderServiceImpl implements OrderService {
         orders.setPhone(addressBook.getPhone());
         orders.setUserId(userId);
         orderMapper.insert(orders);
-        List<OrderDetail> orderDetailList=new ArrayList<>();
+        List<OrderDetail> orderDetailList = new ArrayList<>();
         //向订单明细表插入n条数据
         for (ShoppingCart cart : shoppingCartlist) {
-            OrderDetail orderDetail=new OrderDetail();//订单明细
-            BeanUtils.copyProperties(cart,orderDetail);
+            OrderDetail orderDetail = new OrderDetail();//订单明细
+            BeanUtils.copyProperties(cart, orderDetail);
             orderDetail.setOrderId(orders.getId());//设置订单id
             orderDetailList.add(orderDetail);
         }
@@ -88,7 +96,7 @@ public class OrderServiceImpl implements OrderService {
         //清空当前用户的购物车数据
         shoppingCartMapper.deleteByUserId(userId);
         //封装vo返回结果
-        OrderSubmitVO orderSubmitVO=OrderSubmitVO.builder()
+        OrderSubmitVO orderSubmitVO = OrderSubmitVO.builder()
                 .id(orders.getId())
                 .orderTime(orders.getOrderTime())
                 .orderNumber(orders.getNumber())
@@ -96,6 +104,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         return orderSubmitVO;
     }
+
     /**
      * 订单支付
      *
@@ -144,7 +153,34 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         orderMapper.update(orders);
+        //向客户端浏览器推送消息 type orderId context
+        Map map = new HashMap<>();
+        map.put("type", 1);//1 表示来单提醒 2 表示客户催单
+        map.put("orderId", ordersDB.getId());//订单id
+        map.put("content", "订单号：" + outTradeNo);//上下文
+        String json = JSONObject.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
     }
 
+    /**
+     * 客户催单
+     *
+     * @param id 订单id
+     */
+    public void reminder(Long id) {
+        // 根据订单id查询订单
+        Orders ordersDB = orderMapper.getById(id);
+        if (ordersDB == null) {
+            //抛出业务异常
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        // 根据订单id更新订单的状态、支付方式、支付状态、结账时间
+        Map map = new HashMap<>();
+        map.put("type", 2);//2 表示客户催单
+        map.put("orderId", id);//订单id
+        map.put("content", "订单号：" + ordersDB.getNumber());//上下文
 
+        webSocketServer.sendToAllClient(JSON.toJSONString(map));
+
+    }
 }

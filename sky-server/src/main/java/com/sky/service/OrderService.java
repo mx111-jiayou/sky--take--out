@@ -26,5 +26,9 @@ public interface OrderService {
      */
     void paySuccess(String outTradeNo);
 
-
+    /**
+     * 客户催单
+     * @param id 订单id
+     */
+    void reminder(Long id);
 }
